@@ -1,101 +1,85 @@
-<!DOCTYPE html>
-<html lang="pl">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Bingo Dnia</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="style.css" />
-</head>
-<body>
+// bingo.js — czysta logika gry, bez zależności od Firebase, łatwa do przetestowania
 
-  <!-- EKRAN LOGOWANIA -->
-  <section id="login-screen" class="screen">
-    <div class="login-card">
-      <p class="eyebrow-mark">★</p>
-      <h1>Bingo Dnia</h1>
-      <p class="login-sub">Codzienna karta, wspólna pula tekstów, jeden zwycięzca dnia.</p>
-      <button id="google-signin-btn" class="btn btn-primary">Zaloguj się przez Google</button>
-      <p id="login-error" class="error-text" hidden></p>
-    </div>
-  </section>
+export const GRID_SIZE = 5;
+export const CENTER_INDEX = Math.floor((GRID_SIZE * GRID_SIZE) / 2); // 12 dla siatki 5x5
+export const MIN_PHRASES_REQUIRED = GRID_SIZE * GRID_SIZE - 1; // 24, bo środek to wolne pole
 
-  <!-- APLIKACJA -->
-  <section id="app-screen" class="screen" hidden>
-    <header class="topbar">
-      <h1 class="brand">Bingo Dnia</h1>
-      <nav class="tabs">
-        <button class="tab-btn active" data-tab="card">Moja karta</button>
-        <button class="tab-btn" data-tab="board">Ranking</button>
-        <button class="tab-btn admin-only" data-tab="admin" hidden>Panel admina</button>
-      </nav>
-      <div class="who-am-i">
-        <span id="user-name"></span>
-        <button id="signout-btn" class="btn btn-ghost">Wyloguj</button>
-      </div>
-    </header>
+/**
+ * Losuje jedną kartę bingo z puli zatwierdzonych tekstów.
+ * @param {Array<{id: string, text: string}>} approvedPhrases
+ * @returns {{ cells: Array<{phraseId: string|null, text: string, isFree: boolean}>, marked: boolean[] }}
+ */
+export function generateCard(approvedPhrases) {
+  if (approvedPhrases.length < MIN_PHRASES_REQUIRED) {
+    throw new Error(
+      `Za mało zatwierdzonych tekstów w puli (jest ${approvedPhrases.length}, potrzeba minimum ${MIN_PHRASES_REQUIRED}).`
+    );
+  }
 
-    <!-- WIDOK: KARTA -->
-    <main id="tab-card" class="tab-panel">
-      <div class="panel-head">
-        <h2 id="card-date-label"></h2>
-        <p id="win-banner" class="win-banner" hidden></p>
-      </div>
-      <div id="card-empty-state" class="empty-state" hidden>
-        <p>Karta na dziś jeszcze nie została wylosowana.</p>
-        <button id="draw-card-btn" class="btn btn-primary">Wylosuj moją kartę</button>
-      </div>
-      <div id="card-grid" class="bingo-grid" hidden></div>
+  const shuffled = shuffle(approvedPhrases);
+  const chosen = shuffled.slice(0, MIN_PHRASES_REQUIRED);
 
-      <div class="suggest-box">
-        <h3>Zaproponuj tekst do puli</h3>
-        <form id="suggest-form">
-          <input id="suggest-input" type="text" placeholder="Np. „Ktoś powie: to nie mój dział”" maxlength="140" required />
-          <button type="submit" class="btn btn-secondary">Zaproponuj</button>
-        </form>
-        <p id="suggest-msg" class="hint-text" hidden></p>
-      </div>
-    </main>
+  const cells = [];
+  const marked = [];
+  let chosenIdx = 0;
 
-    <!-- WIDOK: RANKING -->
-    <main id="tab-board" class="tab-panel" hidden>
-      <div class="panel-head"><h2>Ranking zwycięzców</h2></div>
-      <table class="board-table">
-        <thead><tr><th>#</th><th>Uczestnik</th><th>Wygrane</th></tr></thead>
-        <tbody id="board-body"></tbody>
-      </table>
-    </main>
+  for (let i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+    if (i === CENTER_INDEX) {
+      cells.push({ phraseId: null, text: "★ WOLNE POLE", isFree: true });
+      marked.push(true); // wolne pole zawsze zaznaczone
+    } else {
+      const phrase = chosen[chosenIdx++];
+      cells.push({ phraseId: phrase.id, text: phrase.text, isFree: false });
+      marked.push(false);
+    }
+  }
 
-    <!-- WIDOK: ADMIN -->
-    <main id="tab-admin" class="tab-panel" hidden>
-      <div class="panel-head"><h2>Panel admina</h2></div>
+  return { cells, marked };
+}
 
-      <section class="admin-block">
-        <h3>Dodaj tekst do puli</h3>
-        <form id="admin-add-form">
-          <input id="admin-add-input" type="text" placeholder="Nowy tekst na kartę" maxlength="140" required />
-          <button type="submit" class="btn btn-secondary">Dodaj (jako oczekujący)</button>
-        </form>
-      </section>
+function shuffle(array) {
+  const copy = [...array];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
 
-      <section class="admin-block">
-        <h3>Oczekujące na zatwierdzenie <span id="pending-count" class="count-badge"></span></h3>
-        <ul id="pending-list" class="phrase-list"></ul>
-      </section>
+/**
+ * Sprawdza, czy siatka zaznaczeń zawiera komplet w linii, kolumnie lub skosie.
+ * @param {boolean[]} marked - tablica 25 wartości bool, indeksowana wierszami (0..24)
+ * @returns {{pattern: string, indices: number[]}|null}
+ */
+export function checkWin(marked) {
+  const n = GRID_SIZE;
 
-      <section class="admin-block">
-        <h3>Zatwierdzone teksty <span id="approved-count" class="count-badge"></span></h3>
-        <ul id="approved-list" class="phrase-list"></ul>
-      </section>
+  for (let r = 0; r < n; r++) {
+    const indices = [];
+    for (let c = 0; c < n; c++) indices.push(r * n + c);
+    if (indices.every((i) => marked[i])) return { pattern: `wiersz ${r + 1}`, indices };
+  }
 
-      <section class="admin-block">
-        <h3>Uczestnicy</h3>
-        <ul id="participants-list" class="participants-list"></ul>
-      </section>
-    </main>
-  </section>
+  for (let c = 0; c < n; c++) {
+    const indices = [];
+    for (let r = 0; r < n; r++) indices.push(r * n + c);
+    if (indices.every((i) => marked[i])) return { pattern: `kolumna ${c + 1}`, indices };
+  }
 
-  <script type="module" src="app.js"></script>
-</body>
-</html>
+  const diag1 = Array.from({ length: n }, (_, i) => i * n + i);
+  if (diag1.every((i) => marked[i])) return { pattern: "skos ↘", indices: diag1 };
+
+  const diag2 = Array.from({ length: n }, (_, i) => i * n + (n - 1 - i));
+  if (diag2.every((i) => marked[i])) return { pattern: "skos ↙", indices: diag2 };
+
+  return null;
+}
+
+/** Zwraca dzisiejszą datę w formacie YYYY-MM-DD wg lokalnego czasu przeglądarki. */
+export function todayKey() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
