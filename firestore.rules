@@ -1,0 +1,65 @@
+rules_version = '2';
+
+// Reguły dopasowane do małej, zaufanej grupy (do ~20 osób).
+// Każdy zalogowany widzi ranking i pulę tekstów; edytować pulę i cudze karty
+// może tylko admin. Pierwsza osoba, która się zaloguje, automatycznie zostaje adminem
+// (patrz meta/stats.userCount poniżej) — nie trzeba nic ręcznie ustawiać w konsoli.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // licznik użytkowników, używany tylko do wykrycia "kto jest pierwszy"
+    match /meta/stats {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+
+    match /users/{userId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() && request.auth.uid == userId && (
+        request.resource.data.isAdmin == false ||
+        (request.resource.data.isAdmin == true &&
+         get(/databases/$(database)/documents/meta/stats).data.userCount == 0)
+      );
+
+      allow update: if isSignedIn() && (
+        (request.auth.uid == userId && request.resource.data.isAdmin == resource.data.isAdmin) ||
+        isAdmin()
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    match /phrases/{phraseId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    match /cards/{cardId} {
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && (request.resource.data.uid == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    match /wins/{winId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+  }
+}

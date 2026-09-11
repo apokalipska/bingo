@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bingo Dnia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700;9..144,900&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- EKRAN LOGOWANIA -->
+  <section id="login-screen" class="screen">
+    <div class="login-card">
+      <p class="eyebrow-mark">★</p>
+      <h1>Bingo Dnia</h1>
+      <p class="login-sub">Codzienna karta, wspólna pula tekstów, jeden zwycięzca dnia.</p>
+      <button id="google-signin-btn" class="btn btn-primary">Zaloguj się przez Google</button>
+      <p id="login-error" class="error-text" hidden></p>
+    </div>
+  </section>
+
+  <!-- APLIKACJA -->
+  <section id="app-screen" class="screen" hidden>
+    <header class="topbar">
+      <h1 class="brand">Bingo Dnia</h1>
+      <nav class="tabs">
+        <button class="tab-btn active" data-tab="card">Moja karta</button>
+        <button class="tab-btn" data-tab="board">Ranking</button>
+        <button class="tab-btn admin-only" data-tab="admin" hidden>Panel admina</button>
+      </nav>
+      <div class="who-am-i">
+        <span id="user-name"></span>
+        <button id="signout-btn" class="btn btn-ghost">Wyloguj</button>
+      </div>
+    </header>
+
+    <!-- WIDOK: KARTA -->
+    <main id="tab-card" class="tab-panel">
+      <div class="panel-head">
+        <h2 id="card-date-label"></h2>
+        <p id="win-banner" class="win-banner" hidden></p>
+      </div>
+      <div id="card-empty-state" class="empty-state" hidden>
+        <p>Karta na dziś jeszcze nie została wylosowana.</p>
+        <button id="draw-card-btn" class="btn btn-primary">Wylosuj moją kartę</button>
+      </div>
+      <div id="card-grid" class="bingo-grid" hidden></div>
+
+      <div class="suggest-box">
+        <h3>Zaproponuj tekst do puli</h3>
+        <form id="suggest-form">
+          <input id="suggest-input" type="text" placeholder="Np. „Ktoś powie: to nie mój dział”" maxlength="140" required />
+          <button type="submit" class="btn btn-secondary">Zaproponuj</button>
+        </form>
+        <p id="suggest-msg" class="hint-text" hidden></p>
+      </div>
+    </main>
+
+    <!-- WIDOK: RANKING -->
+    <main id="tab-board" class="tab-panel" hidden>
+      <div class="panel-head"><h2>Ranking zwycięzców</h2></div>
+      <table class="board-table">
+        <thead><tr><th>#</th><th>Uczestnik</th><th>Wygrane</th></tr></thead>
+        <tbody id="board-body"></tbody>
+      </table>
+    </main>
+
+    <!-- WIDOK: ADMIN -->
+    <main id="tab-admin" class="tab-panel" hidden>
+      <div class="panel-head"><h2>Panel admina</h2></div>
+
+      <section class="admin-block">
+        <h3>Dodaj tekst do puli</h3>
+        <form id="admin-add-form">
+          <input id="admin-add-input" type="text" placeholder="Nowy tekst na kartę" maxlength="140" required />
+          <button type="submit" class="btn btn-secondary">Dodaj (jako oczekujący)</button>
+        </form>
+      </section>
+
+      <section class="admin-block">
+        <h3>Oczekujące na zatwierdzenie <span id="pending-count" class="count-badge"></span></h3>
+        <ul id="pending-list" class="phrase-list"></ul>
+      </section>
+
+      <section class="admin-block">
+        <h3>Zatwierdzone teksty <span id="approved-count" class="count-badge"></span></h3>
+        <ul id="approved-list" class="phrase-list"></ul>
+      </section>
+
+      <section class="admin-block">
+        <h3>Uczestnicy</h3>
+        <ul id="participants-list" class="participants-list"></ul>
+      </section>
+    </main>
+  </section>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
