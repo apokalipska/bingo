@@ -22,10 +22,15 @@ service cloud.firestore {
 
     // dozwolony, jeśli e-mail jest na liście zaproszonych, albo jest jeszcze
     // zupełnie pierwszą osobą w appce (bootstrap pierwszego admina)
+    function isFirstEver() {
+      return !exists(/databases/$(database)/documents/meta/stats) ||
+        get(/databases/$(database)/documents/meta/stats).data.userCount == 0;
+    }
+
     function isAllowed() {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/allowlist/$(request.auth.token.email)) ||
-        get(/databases/$(database)/documents/meta/stats).data.userCount == 0
+        isFirstEver()
       );
     }
 
@@ -46,8 +51,7 @@ service cloud.firestore {
 
       allow create: if isAllowed() && request.auth.uid == userId && (
         request.resource.data.isAdmin == false ||
-        (request.resource.data.isAdmin == true &&
-         get(/databases/$(database)/documents/meta/stats).data.userCount == 0)
+        (request.resource.data.isAdmin == true && isFirstEver())
       );
 
       allow update: if isSignedIn() && (
