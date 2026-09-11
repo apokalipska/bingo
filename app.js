@@ -61,7 +61,11 @@ onAuthStateChanged(auth, async (user) => {
   try {
     await ensureUserDoc(user);
   } catch (err) {
-    loginError.textContent = "Błąd konfiguracji konta: " + err.message;
+    if (err.code === "permission-denied") {
+      loginError.textContent = "Ten adres e-mail nie ma dostępu do tej appki. Poproś admina, żeby dodał Cię do listy zaproszonych.";
+    } else {
+      loginError.textContent = "Błąd logowania: " + err.message;
+    }
     loginError.hidden = false;
     await signOut(auth);
     return;
@@ -93,6 +97,14 @@ async function ensureUserDoc(user) {
       createdAt: serverTimestamp(),
     });
     tx.set(statsRef, { userCount: userCount + 1 }, { merge: true });
+
+    if (isFirstUser) {
+      // pierwszy admin ląduje na liście dozwolonych automatycznie
+      tx.set(doc(db, "allowlist", user.email), {
+        addedBy: "bootstrap",
+        addedAt: serverTimestamp(),
+      });
+    }
   });
 }
 
@@ -108,6 +120,7 @@ function startListeners() {
   listenToTodaysCard();
   listenToLeaderboard();
   listenToAdminPanels();
+  listenToAllowlist();
 }
 
 function cleanupListeners() {
@@ -340,6 +353,41 @@ function listenToAdminPanels() {
         </span>`;
       li.querySelector(".action-draw").addEventListener("click", () => drawCardForUser(docSnap.id));
       participantsList.appendChild(li);
+    });
+  }));
+}
+
+// ---------- Lista dozwolonych adresów e-mail ----------
+const allowlistForm = document.getElementById("allowlist-add-form");
+const allowlistInput = document.getElementById("allowlist-add-input");
+const allowlistListEl = document.getElementById("allowlist-list");
+const allowlistCount = document.getElementById("allowlist-count");
+
+allowlistForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = allowlistInput.value.trim().toLowerCase();
+  if (!email) return;
+  await setDoc(doc(db, "allowlist", email), {
+    addedBy: currentUser.uid,
+    addedAt: serverTimestamp(),
+  });
+  allowlistInput.value = "";
+});
+
+function listenToAllowlist() {
+  unsubscribers.push(onSnapshot(collection(db, "allowlist"), (snap) => {
+    allowlistCount.textContent = `(${snap.size})`;
+    allowlistListEl.innerHTML = "";
+    snap.docs.forEach((docSnap) => {
+      const li = document.createElement("li");
+      li.className = "phrase-row";
+      li.innerHTML = `<span>${escapeHtml(docSnap.id)}</span>
+        <span class="row-actions">
+          <button class="action-delete" data-id="${docSnap.id}">Usuń</button>
+        </span>`;
+      li.querySelector(".action-delete").addEventListener("click", () =>
+        deleteDoc(doc(db, "allowlist", docSnap.id)));
+      allowlistListEl.appendChild(li);
     });
   }));
 }
