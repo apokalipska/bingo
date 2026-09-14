@@ -221,7 +221,7 @@ button {
   box-shadow: inset 0 0 0 3px var(--marigold);
 }
 
-/* --- Formularz propozycji --- */
+/* --- Formularz propozycji i pula tekstów --- */
 .suggest-box {
   margin-top: 2.5rem;
   padding-top: 1.5rem;
@@ -234,6 +234,52 @@ button {
   font-weight: 600;
   font-family: var(--font-body);
 }
+
+.pool-list {
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.pool-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.45rem 0.7rem;
+  background: var(--ink-panel);
+  border-radius: 4px;
+  font-size: 0.88rem;
+}
+.pool-status {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 3px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.pool-status.status-approved { background: rgba(123, 174, 140, 0.2); color: #7BAE8C; }
+.pool-status.status-pending { background: rgba(232, 163, 61, 0.2); color: var(--marigold); }
+.pool-suggest-heading { margin-top: 1.5rem; }
+
+.edit-row-input {
+  flex: 1;
+  min-width: 120px;
+  background: var(--ink-panel-2);
+  border: 2px solid var(--marigold-dim);
+  color: var(--chalk);
+  padding: 0.4rem 0.6rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+.action-edit { color: var(--chalk-dim); }
+.action-edit:hover { background: rgba(255, 255, 255, 0.08); }
+.action-save { color: #7BAE8C; }
+.action-save:hover { background: rgba(123, 174, 140, 0.15); }
 #suggest-form, #admin-add-form {
   display: flex;
   gap: 0.6rem;
