@@ -121,6 +121,7 @@ function startListeners() {
   listenToLeaderboard();
   listenToAdminPanels();
   listenToAllowlist();
+  listenToPhrasePool();
 }
 
 function cleanupListeners() {
@@ -242,6 +243,30 @@ function formatDatePl(dateKey) {
   return `${d}.${m}.${y}`;
 }
 
+// ---------- Pula tekstów (widoczna dla wszystkich, żeby nie dublować) ----------
+const poolList = document.getElementById("pool-list");
+
+function listenToPhrasePool() {
+  unsubscribers.push(onSnapshot(collection(db, "phrases"), (snap) => {
+    const items = snap.docs
+      .map((d) => ({ text: d.data().text, status: d.data().status }))
+      .sort((a, b) => a.text.localeCompare(b.text, "pl"));
+
+    poolList.innerHTML = "";
+    if (items.length === 0) {
+      poolList.innerHTML = `<li class="hint-text">Pula jest jeszcze pusta.</li>`;
+      return;
+    }
+    items.forEach((p) => {
+      const li = document.createElement("li");
+      const statusLabel = p.status === "approved" ? "zatwierdzony" : "oczekujący";
+      const statusClass = p.status === "approved" ? "status-approved" : "status-pending";
+      li.innerHTML = `<span>${escapeHtml(p.text)}</span><span class="pool-status ${statusClass}">${statusLabel}</span>`;
+      poolList.appendChild(li);
+    });
+  }));
+}
+
 // ---------- Zaproponuj tekst ----------
 const suggestForm = document.getElementById("suggest-form");
 const suggestInput = document.getElementById("suggest-input");
@@ -266,134 +291,4 @@ suggestForm.addEventListener("submit", async (e) => {
 // ---------- Ranking ----------
 const boardBody = document.getElementById("board-body");
 
-function listenToLeaderboard() {
-  const q = query(collection(db, "users"), orderBy("wins", "desc"));
-  unsubscribers.push(onSnapshot(q, (snap) => {
-    boardBody.innerHTML = "";
-    snap.docs.forEach((docSnap, i) => {
-      const u = docSnap.data();
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${i + 1}</td><td>${escapeHtml(u.displayName || u.email)}</td><td>${u.wins || 0}</td>`;
-      boardBody.appendChild(tr);
-    });
-  }));
-}
-
-// ---------- Panel admina ----------
-const pendingList = document.getElementById("pending-list");
-const approvedList = document.getElementById("approved-list");
-const pendingCount = document.getElementById("pending-count");
-const approvedCount = document.getElementById("approved-count");
-const participantsList = document.getElementById("participants-list");
-const adminAddForm = document.getElementById("admin-add-form");
-const adminAddInput = document.getElementById("admin-add-input");
-
-adminAddForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const text = adminAddInput.value.trim();
-  if (!text) return;
-  await addDoc(collection(db, "phrases"), {
-    text,
-    status: "pending",
-    createdBy: currentUser.uid,
-    createdAt: serverTimestamp(),
-  });
-  adminAddInput.value = "";
-});
-
-function listenToAdminPanels() {
-  const pendingQ = query(collection(db, "phrases"), where("status", "==", "pending"));
-  unsubscribers.push(onSnapshot(pendingQ, (snap) => {
-    pendingCount.textContent = `(${snap.size})`;
-    pendingList.innerHTML = "";
-    snap.docs.forEach((docSnap) => {
-      const p = docSnap.data();
-      const li = document.createElement("li");
-      li.className = "phrase-row";
-      li.innerHTML = `<span>${escapeHtml(p.text)}</span>
-        <span class="row-actions">
-          <button class="action-approve" data-id="${docSnap.id}">Zatwierdź</button>
-          <button class="action-delete" data-id="${docSnap.id}">Usuń</button>
-        </span>`;
-      li.querySelector(".action-approve").addEventListener("click", () =>
-        updateDoc(doc(db, "phrases", docSnap.id), { status: "approved" }));
-      li.querySelector(".action-delete").addEventListener("click", () =>
-        deleteDoc(doc(db, "phrases", docSnap.id)));
-      pendingList.appendChild(li);
-    });
-  }));
-
-  const approvedQ = query(collection(db, "phrases"), where("status", "==", "approved"));
-  unsubscribers.push(onSnapshot(approvedQ, (snap) => {
-    approvedCount.textContent = `(${snap.size} / min. ${MIN_PHRASES_REQUIRED})`;
-    approvedList.innerHTML = "";
-    snap.docs.forEach((docSnap) => {
-      const p = docSnap.data();
-      const li = document.createElement("li");
-      li.className = "phrase-row";
-      li.innerHTML = `<span>${escapeHtml(p.text)}</span>
-        <span class="row-actions">
-          <button class="action-delete" data-id="${docSnap.id}">Usuń</button>
-        </span>`;
-      li.querySelector(".action-delete").addEventListener("click", () =>
-        deleteDoc(doc(db, "phrases", docSnap.id)));
-      approvedList.appendChild(li);
-    });
-  }));
-
-  unsubscribers.push(onSnapshot(collection(db, "users"), (snap) => {
-    participantsList.innerHTML = "";
-    snap.docs.forEach((docSnap) => {
-      const u = docSnap.data();
-      const li = document.createElement("li");
-      li.className = "participant-row";
-      li.innerHTML = `<span>${escapeHtml(u.displayName || u.email)} — ${u.wins || 0} wygranych${u.isAdmin ? " (admin)" : ""}</span>
-        <span class="row-actions">
-          <button class="action-draw" data-uid="${docSnap.id}">Wylosuj nową kartę</button>
-        </span>`;
-      li.querySelector(".action-draw").addEventListener("click", () => drawCardForUser(docSnap.id));
-      participantsList.appendChild(li);
-    });
-  }));
-}
-
-// ---------- Lista dozwolonych adresów e-mail ----------
-const allowlistForm = document.getElementById("allowlist-add-form");
-const allowlistInput = document.getElementById("allowlist-add-input");
-const allowlistListEl = document.getElementById("allowlist-list");
-const allowlistCount = document.getElementById("allowlist-count");
-
-allowlistForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const email = allowlistInput.value.trim().toLowerCase();
-  if (!email) return;
-  await setDoc(doc(db, "allowlist", email), {
-    addedBy: currentUser.uid,
-    addedAt: serverTimestamp(),
-  });
-  allowlistInput.value = "";
-});
-
-function listenToAllowlist() {
-  unsubscribers.push(onSnapshot(collection(db, "allowlist"), (snap) => {
-    allowlistCount.textContent = `(${snap.size})`;
-    allowlistListEl.innerHTML = "";
-    snap.docs.forEach((docSnap) => {
-      const li = document.createElement("li");
-      li.className = "phrase-row";
-      li.innerHTML = `<span>${escapeHtml(docSnap.id)}</span>
-        <span class="row-actions">
-          <button class="action-delete" data-id="${docSnap.id}">Usuń</button>
-        </span>`;
-      li.querySelector(".action-delete").addEventListener("click", () =>
-        deleteDoc(doc(db, "allowlist", docSnap.id)));
-      allowlistListEl.appendChild(li);
-    });
-  }));
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str ?? "";
-  return div.innerHTML;
-}
+function
