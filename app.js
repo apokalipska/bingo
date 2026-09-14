@@ -291,4 +291,173 @@ suggestForm.addEventListener("submit", async (e) => {
 // ---------- Ranking ----------
 const boardBody = document.getElementById("board-body");
 
-function
+function listenToLeaderboard() {
+  const q = query(collection(db, "users"), orderBy("wins", "desc"));
+  unsubscribers.push(onSnapshot(q, (snap) => {
+    boardBody.innerHTML = "";
+    snap.docs.forEach((docSnap, i) => {
+      const u = docSnap.data();
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${i + 1}</td><td>${escapeHtml(u.displayName || u.email)}</td><td>${u.wins || 0}</td>`;
+      boardBody.appendChild(tr);
+    });
+  }));
+}
+
+// ---------- Panel admina ----------
+const pendingList = document.getElementById("pending-list");
+const approvedList = document.getElementById("approved-list");
+const pendingCount = document.getElementById("pending-count");
+const approvedCount = document.getElementById("approved-count");
+const participantsList = document.getElementById("participants-list");
+const adminAddForm = document.getElementById("admin-add-form");
+const adminAddInput = document.getElementById("admin-add-input");
+
+adminAddForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const text = adminAddInput.value.trim();
+  if (!text) return;
+  await addDoc(collection(db, "phrases"), {
+    text,
+    status: "pending",
+    createdBy: currentUser.uid,
+    createdAt: serverTimestamp(),
+  });
+  adminAddInput.value = "";
+});
+
+let lastPendingDocs = [];
+let lastApprovedDocs = [];
+
+function listenToAdminPanels() {
+  const pendingQ = query(collection(db, "phrases"), where("status", "==", "pending"));
+  unsubscribers.push(onSnapshot(pendingQ, (snap) => {
+    lastPendingDocs = snap.docs;
+    renderPendingList();
+  }));
+
+  const approvedQ = query(collection(db, "phrases"), where("status", "==", "approved"));
+  unsubscribers.push(onSnapshot(approvedQ, (snap) => {
+    lastApprovedDocs = snap.docs;
+    renderApprovedList();
+  }));
+
+  unsubscribers.push(onSnapshot(collection(db, "users"), (snap) => {
+    participantsList.innerHTML = "";
+    snap.docs.forEach((docSnap) => {
+      const u = docSnap.data();
+      const li = document.createElement("li");
+      li.className = "participant-row";
+      li.innerHTML = `<span>${escapeHtml(u.displayName || u.email)} — ${u.wins || 0} wygranych${u.isAdmin ? " (admin)" : ""}</span>
+        <span class="row-actions">
+          <button class="action-draw" data-uid="${docSnap.id}">Wylosuj nową kartę</button>
+        </span>`;
+      li.querySelector(".action-draw").addEventListener("click", () => drawCardForUser(docSnap.id));
+      participantsList.appendChild(li);
+    });
+  }));
+}
+
+function renderPendingList() {
+  pendingCount.textContent = `(${lastPendingDocs.length})`;
+  pendingList.innerHTML = "";
+  lastPendingDocs.forEach((docSnap) => {
+    const p = docSnap.data();
+    const li = document.createElement("li");
+    li.className = "phrase-row";
+    li.innerHTML = `<span>${escapeHtml(p.text)}</span>
+      <span class="row-actions">
+        <button class="action-approve" data-id="${docSnap.id}">Zatwierdź</button>
+        <button class="action-edit" data-id="${docSnap.id}">Edytuj</button>
+        <button class="action-delete" data-id="${docSnap.id}">Usuń</button>
+      </span>`;
+    li.querySelector(".action-approve").addEventListener("click", () =>
+      updateDoc(doc(db, "phrases", docSnap.id), { status: "approved" }));
+    li.querySelector(".action-edit").addEventListener("click", () =>
+      startEditingPhraseRow(li, docSnap.id, p.text, renderPendingList));
+    li.querySelector(".action-delete").addEventListener("click", () =>
+      deleteDoc(doc(db, "phrases", docSnap.id)));
+    pendingList.appendChild(li);
+  });
+}
+
+function renderApprovedList() {
+  approvedCount.textContent = `(${lastApprovedDocs.length} / min. ${MIN_PHRASES_REQUIRED})`;
+  approvedList.innerHTML = "";
+  lastApprovedDocs.forEach((docSnap) => {
+    const p = docSnap.data();
+    const li = document.createElement("li");
+    li.className = "phrase-row";
+    li.innerHTML = `<span>${escapeHtml(p.text)}</span>
+      <span class="row-actions">
+        <button class="action-edit" data-id="${docSnap.id}">Edytuj</button>
+        <button class="action-delete" data-id="${docSnap.id}">Usuń</button>
+      </span>`;
+    li.querySelector(".action-edit").addEventListener("click", () =>
+      startEditingPhraseRow(li, docSnap.id, p.text, renderApprovedList));
+    li.querySelector(".action-delete").addEventListener("click", () =>
+      deleteDoc(doc(db, "phrases", docSnap.id)));
+    approvedList.appendChild(li);
+  });
+}
+
+// ---------- Lista dozwolonych adresów e-mail ----------
+const allowlistForm = document.getElementById("allowlist-add-form");
+const allowlistInput = document.getElementById("allowlist-add-input");
+const allowlistListEl = document.getElementById("allowlist-list");
+const allowlistCount = document.getElementById("allowlist-count");
+
+allowlistForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = allowlistInput.value.trim().toLowerCase();
+  if (!email) return;
+  await setDoc(doc(db, "allowlist", email), {
+    addedBy: currentUser.uid,
+    addedAt: serverTimestamp(),
+  });
+  allowlistInput.value = "";
+});
+
+function listenToAllowlist() {
+  unsubscribers.push(onSnapshot(collection(db, "allowlist"), (snap) => {
+    allowlistCount.textContent = `(${snap.size})`;
+    allowlistListEl.innerHTML = "";
+    snap.docs.forEach((docSnap) => {
+      const li = document.createElement("li");
+      li.className = "phrase-row";
+      li.innerHTML = `<span>${escapeHtml(docSnap.id)}</span>
+        <span class="row-actions">
+          <button class="action-delete" data-id="${docSnap.id}">Usuń</button>
+        </span>`;
+      li.querySelector(".action-delete").addEventListener("click", () =>
+        deleteDoc(doc(db, "allowlist", docSnap.id)));
+      allowlistListEl.appendChild(li);
+    });
+  }));
+}
+
+function startEditingPhraseRow(li, phraseId, currentText, rerender) {
+  li.innerHTML = `
+    <input class="edit-row-input" type="text" value="${escapeHtml(currentText)}" maxlength="140" />
+    <span class="row-actions">
+      <button class="action-save">Zapisz</button>
+      <button class="action-delete">Anuluj</button>
+    </span>`;
+  const input = li.querySelector(".edit-row-input");
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+
+  li.querySelector(".action-save").addEventListener("click", async () => {
+    const newText = input.value.trim();
+    if (newText) {
+      await updateDoc(doc(db, "phrases", phraseId), { text: newText });
+    }
+  });
+  li.querySelector(".action-delete").addEventListener("click", () => rerender());
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str ?? "";
+  return div.innerHTML;
+}

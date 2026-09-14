@@ -15,6 +15,10 @@ działa bezpośrednio z GitHub Pages.
   automatycznie zostaje adminem. Kolejnych adminów możesz dodać ręcznie,
   zmieniając pole `isAdmin` na `true` w dokumencie danej osoby
   w kolekcji `users` (konsola Firebase → Firestore Database).
+- **Kto może się zalogować**: appka wpuszcza tylko adresy e-mail wpisane
+  przez admina w panelu („Kto ma dostęp do appki”). Pierwszy admin (Ty)
+  trafia na tę listę automatycznie przy pierwszym logowaniu — resztę
+  uczestników musisz dopisać ręcznie, zanim spróbują się zalogować.
 - **Wolne pole**: środkowe pole karty jest zawsze zaznaczone (klasyczna
   zasada bingo).
 - **Wygrana**: liczy się pierwszy komplet w danym dniu na daną osobę.

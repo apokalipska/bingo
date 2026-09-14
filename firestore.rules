@@ -1,5 +1,12 @@
 rules_version = '2';
 
+// Reguły dopasowane do małej, zaufanej grupy (do ~20 osób).
+// Do samych danych appki (poza kontem pierwszego admina) dopuszczeni są
+// tylko ludzie, których e-mail jest wpisany do kolekcji `allowlist` przez
+// admina. Pierwsza osoba, która się kiedykolwiek zaloguje, zostaje adminem
+// i automatycznie trafia na tę listę — nie trzeba nic ręcznie ustawiać
+// w konsoli.
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -13,6 +20,8 @@ service cloud.firestore {
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
 
+    // dozwolony, jeśli e-mail jest na liście zaproszonych, albo jest jeszcze
+    // zupełnie pierwszą osobą w appce (bootstrap pierwszego admina)
     function isFirstEver() {
       return !exists(/databases/$(database)/documents/meta/stats) ||
         get(/databases/$(database)/documents/meta/stats).data.userCount == 0;
@@ -25,11 +34,14 @@ service cloud.firestore {
       );
     }
 
+    // licznik użytkowników, używany tylko do wykrycia "kto jest pierwszy"
     match /meta/stats {
       allow read: if isSignedIn();
       allow write: if isSignedIn();
     }
 
+    // lista dozwolonych adresów e-mail — zarządza nią admin; wyjątkiem jest
+    // moment bootstrapu, gdy pierwsza osoba zapisuje samą siebie
     match /allowlist/{emailId} {
       allow read: if isAdmin();
       allow write: if isAdmin() || (isFirstEver() && emailId == request.auth.token.email);
